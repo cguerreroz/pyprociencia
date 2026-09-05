@@ -4,6 +4,8 @@ import plotly.express as px
 import streamlit as st
 
 from core import get_data, ensure_defaults, sidebar_contexto, get_universo, get_muestra_scored, presupuesto_actual
+from data.sampling import muestra_estratificada
+from data.scoring import calcular_score
 from solvers.base import RestriccionesEquidad
 from solvers.cbc_backend import resolver_portafolio
 from solvers.greedy import resolver_greedy
@@ -56,47 +58,93 @@ st.caption(
     "justificar qué política de selección conviene adoptar."
 )
 
-st.markdown("##### Parámetros del comparativo — cámbialos y el resultado se recalcula al instante")
-st.caption(
-    "Estos son los valores que realmente entran al cálculo del escenario \"Modelo completo\" (presupuesto y "
-    "restricciones de equidad). Ajústalos aquí para analizar en vivo, sin salir de esta página ni afectar lo "
-    "configurado en el Panel de decisión."
-)
+modo_caso_base = st.session_state.get("modo_caso_base", False)
 
-n_institutos_disp = int((muestra["TIPO_ENTIDAD"] == "INSTITUTO DE INVESTIGACIÓN").sum())
-col_pres, col_div, col_ins = st.columns(3)
-with col_pres:
-    pct_comp_default = round(100 * presupuesto_base / total_convocatoria, 1) if total_convocatoria else 40.0
-    pct_comp_default = min(max(pct_comp_default, 5.0), 100.0)
-    pct_comp = st.slider(
-        "Presupuesto (% de la convocatoria)",
-        min_value=5, max_value=100,
-        value=int(round(st.session_state.get("sens_pct_presupuesto", pct_comp_default))),
-        step=1, key="sens_pct_presupuesto",
+with st.container(border=True):
+    st.markdown("##### 🎛️ Parámetros del comparativo — cámbialos y el resultado se recalcula al instante")
+    st.caption(
+        "Estos son los valores que realmente entran al cálculo de los escenarios (presupuesto, número de "
+        "proyectos de la muestra y restricciones de equidad). Ajústalos aquí para analizar en vivo, sin salir "
+        "de esta página ni afectar lo configurado en el Panel de decisión."
     )
-    presupuesto_comp = total_convocatoria * pct_comp / 100
-    st.caption(f"S/ {presupuesto_comp:,.0f}")
-with col_div:
-    diversidad_activa_comp = st.toggle(
-        "Diversidad institucional", value=st.session_state.get("sens_diversidad_activa", restricciones_actuales.diversidad_activa),
-        key="sens_diversidad_activa",
-    )
-    max_por_entidad_comp = st.number_input(
-        "Máx. proyectos por entidad", min_value=1, max_value=5,
-        value=st.session_state.get("sens_max_por_entidad", restricciones_actuales.max_por_entidad),
-        disabled=not diversidad_activa_comp, key="sens_max_por_entidad",
-    )
-with col_ins:
-    institutos_activa_comp = st.toggle(
-        "Fomento a institutos", value=st.session_state.get("sens_institutos_activa", restricciones_actuales.institutos_activa),
-        key="sens_institutos_activa",
-    )
-    tope_institutos = max(len(muestra), 1)
-    min_institutos_comp = st.number_input(
-        f"Mín. institutos financiados ({n_institutos_disp} disponibles)", min_value=0, max_value=tope_institutos,
-        value=min(st.session_state.get("sens_min_institutos", restricciones_actuales.min_institutos), tope_institutos),
-        disabled=not institutos_activa_comp, key="sens_min_institutos",
-    )
+
+    col_n, col_pres, col_div, col_ins = st.columns([1.1, 1.3, 1, 1])
+
+    with col_n:
+        if modo_caso_base:
+            st.caption(f"**Número de proyectos:** fijado por el modo validación ({len(muestra)}, Anexo A).")
+            muestra_comp = muestra
+        else:
+            n_disponibles_comp = max(len(universo), 1)
+            n_muestra_comp = st.number_input(
+                f"Número de proyectos en la muestra ({len(universo)} disponibles)",
+                min_value=1, max_value=n_disponibles_comp,
+                value=min(st.session_state.get("sens_n_muestra", int(st.session_state["n_muestra"])), n_disponibles_comp),
+                step=1, key="sens_n_muestra",
+            )
+            muestra_comp = calcular_score(
+                muestra_estratificada(universo, int(n_muestra_comp), st.session_state["semilla"])
+            ).reset_index(drop=True)
+            st.caption("Muestreo estratificado con la misma semilla del Panel de decisión.")
+
+    costos_comp = muestra_comp["MONTO_SOLES"].tolist()
+    scores_comp = muestra_comp["SCORE"].tolist()
+    entidades_comp = muestra_comp["ENTIDAD_EJECUTORA_SUBVENCIONADO"].tolist()
+    tipo_entidad_comp = muestra_comp["TIPO_ENTIDAD"].tolist()
+    n_institutos_disp_comp = int((muestra_comp["TIPO_ENTIDAD"] == "INSTITUTO DE INVESTIGACIÓN").sum())
+
+    with col_pres:
+        pct_comp_default = round(100 * presupuesto_base / total_convocatoria, 1) if total_convocatoria else 40.0
+        pct_comp_default = min(max(pct_comp_default, 5.0), 100.0)
+        pct_comp = st.slider(
+            "Presupuesto (% de la convocatoria)",
+            min_value=5, max_value=100,
+            value=int(round(st.session_state.get("sens_pct_presupuesto", pct_comp_default))),
+            step=1, key="sens_pct_presupuesto",
+        )
+        presupuesto_pct_comp = total_convocatoria * pct_comp / 100
+
+        usar_monto_manual_comp = st.checkbox(
+            "Ingresar monto exacto (S/.)",
+            value=st.session_state.get("sens_presupuesto_manual") is not None,
+            key="sens_chk_monto_manual",
+        )
+        if usar_monto_manual_comp:
+            valor_inicial_comp = st.session_state.get("sens_presupuesto_manual") or round(presupuesto_pct_comp, 2)
+            monto_manual_comp = st.number_input(
+                "Presupuesto (S/.)", min_value=0.0, value=float(valor_inicial_comp), step=10000.0,
+                key="sens_num_monto_manual",
+            )
+            st.session_state["sens_presupuesto_manual"] = monto_manual_comp
+        else:
+            st.session_state["sens_presupuesto_manual"] = None
+
+        presupuesto_comp = st.session_state["sens_presupuesto_manual"] or presupuesto_pct_comp
+        st.caption(
+            f"S/ {presupuesto_comp:,.0f}"
+            + (" (monto exacto — anula el %)" if usar_monto_manual_comp else "")
+        )
+    with col_div:
+        diversidad_activa_comp = st.toggle(
+            "Diversidad institucional", value=st.session_state.get("sens_diversidad_activa", restricciones_actuales.diversidad_activa),
+            key="sens_diversidad_activa",
+        )
+        max_por_entidad_comp = st.number_input(
+            "Máx. proyectos por entidad", min_value=1, max_value=5,
+            value=st.session_state.get("sens_max_por_entidad", restricciones_actuales.max_por_entidad),
+            disabled=not diversidad_activa_comp, key="sens_max_por_entidad",
+        )
+    with col_ins:
+        institutos_activa_comp = st.toggle(
+            "Fomento a institutos", value=st.session_state.get("sens_institutos_activa", restricciones_actuales.institutos_activa),
+            key="sens_institutos_activa",
+        )
+        tope_institutos = max(len(muestra_comp), 1)
+        min_institutos_comp = st.number_input(
+            f"Mín. institutos financiados ({n_institutos_disp_comp} disponibles)", min_value=0, max_value=tope_institutos,
+            value=min(st.session_state.get("sens_min_institutos", restricciones_actuales.min_institutos), tope_institutos),
+            disabled=not institutos_activa_comp, key="sens_min_institutos",
+        )
 
 restricciones_comp = RestriccionesEquidad(
     diversidad_activa=diversidad_activa_comp,
@@ -105,9 +153,11 @@ restricciones_comp = RestriccionesEquidad(
     min_institutos=int(min_institutos_comp),
 )
 
-res_completo = resolver_portafolio(costos, scores, presupuesto_comp, entidades, tipo_entidad, restricciones_comp)
-res_sin_restr = resolver_portafolio(costos, scores, presupuesto_comp, entidades, tipo_entidad, sin_restricciones)
-res_greedy = resolver_greedy(costos, scores, presupuesto_comp)
+st.divider()
+
+res_completo = resolver_portafolio(costos_comp, scores_comp, presupuesto_comp, entidades_comp, tipo_entidad_comp, restricciones_comp)
+res_sin_restr = resolver_portafolio(costos_comp, scores_comp, presupuesto_comp, entidades_comp, tipo_entidad_comp, sin_restricciones)
+res_greedy = resolver_greedy(costos_comp, scores_comp, presupuesto_comp)
 
 
 def _stats_escenario(resultado) -> dict | None:
@@ -117,7 +167,7 @@ def _stats_escenario(resultado) -> dict | None:
     if resultado.estado != "OPTIMO":
         return None
     idx = list(resultado.seleccionados)
-    sub = muestra.iloc[idx] if idx else muestra.iloc[0:0]
+    sub = muestra_comp.iloc[idx] if idx else muestra_comp.iloc[0:0]
     return {
         "score_total": resultado.score_total,
         "n_proyectos": len(idx),
@@ -170,7 +220,7 @@ for col, esc in zip(cols, escenarios):
             st.warning("No factible con este presupuesto/restricciones.")
         else:
             st.metric("Score total", f"{s['score_total']:,.1f}")
-            st.metric("Proyectos financiados", f"{s['n_proyectos']} / {len(muestra)}")
+            st.metric("Proyectos financiados", f"{s['n_proyectos']} / {len(muestra_comp)}")
             st.metric("Presupuesto usado", f"S/ {s['costo_total']:,.0f}", f"{100*s['costo_total']/presupuesto_comp:.1f}% del asignado" if presupuesto_comp else None)
             st.caption(f"Entidades distintas: **{s['n_entidades']}** · Institutos: **{s['n_institutos']}**")
         st.caption(esc["nota"])
