@@ -1,7 +1,8 @@
 import plotly.express as px
 import streamlit as st
 
-from core import get_data, ensure_defaults, sidebar_contexto, get_universo, get_muestra_scored
+from core import get_data, ensure_defaults, sidebar_contexto, get_universo, get_muestra_scored, activar_caso_base, desactivar_caso_base
+from data.caso_base import RESULTADO_ESPERADO
 from data.convocatorias import etiqueta_convocatoria
 from data.sampling import resumen_reduccion
 
@@ -11,18 +12,43 @@ df, resumen = get_data()
 ensure_defaults(resumen)
 sidebar_contexto(df, resumen)
 
-st.markdown("#### 1. Elige la convocatoria")
-opciones = resumen["CONVOCATORIA"].tolist()
-etiquetas = {row["CONVOCATORIA"]: etiqueta_convocatoria(row) for _, row in resumen.iterrows()}
-seleccion = st.selectbox(
-    "Convocatoria (57 disponibles, de 2015 a 2021)",
-    opciones,
-    index=opciones.index(st.session_state["convocatoria"]),
-    format_func=lambda c: etiquetas[c],
-)
-if seleccion != st.session_state["convocatoria"]:
-    st.session_state["convocatoria"] = seleccion
-    st.rerun()
+modo_caso_base = st.session_state.get("modo_caso_base", False)
+
+with st.container(border=True):
+    st.markdown("##### 🔒 Modo validación — reproducir el caso exacto del informe")
+    st.caption(
+        "Fija la convocatoria 2018-01, los 30 códigos de proyecto exactos del Anexo A, el presupuesto S/ 3,600,000 "
+        "y las restricciones originales (sin equidad de género). Debe dar score "
+        f"**{RESULTADO_ESPERADO['score_total']}**, **{RESULTADO_ESPERADO['n_proyectos']}** proyectos financiados. "
+        "El % de muestra y la semilla NO reproducen el muestreo del informe (el equipo nunca publicó su código "
+        "exacto de muestreo estratificado) — esta lista fija es la única forma de igualar el resultado bit a bit."
+    )
+    activar = st.toggle("Activar modo validación", value=modo_caso_base, key="toggle_caso_base")
+    if activar != modo_caso_base:
+        if activar:
+            activar_caso_base(resumen)
+        else:
+            desactivar_caso_base()
+        st.rerun()
+
+st.divider()
+
+if modo_caso_base:
+    st.info("Convocatoria y muestra fijadas por el modo validación. Desactívalo arriba para elegir otra convocatoria o tamaño de muestra.")
+    st.markdown(f"**Convocatoria:** {st.session_state['convocatoria'].title()}")
+else:
+    st.markdown("#### 1. Elige la convocatoria")
+    opciones = resumen["CONVOCATORIA"].tolist()
+    etiquetas = {row["CONVOCATORIA"]: etiqueta_convocatoria(row) for _, row in resumen.iterrows()}
+    seleccion = st.selectbox(
+        "Convocatoria (57 disponibles, de 2015 a 2021)",
+        opciones,
+        index=opciones.index(st.session_state["convocatoria"]),
+        format_func=lambda c: etiquetas[c],
+    )
+    if seleccion != st.session_state["convocatoria"]:
+        st.session_state["convocatoria"] = seleccion
+        st.rerun()
 
 fila = resumen[resumen["CONVOCATORIA"] == st.session_state["convocatoria"]].iloc[0]
 c1, c2, c3, c4, c5 = st.columns(5)
@@ -43,23 +69,27 @@ for a in avisos:
     st.warning("⚠ " + a)
 
 st.divider()
-st.markdown("#### 2. Define el tamaño de la muestra")
-col_pct, col_sem, col_btn = st.columns([2, 1, 1])
-with col_pct:
-    pct = st.slider(
-        "% de la convocatoria a incluir en el análisis",
-        min_value=5, max_value=100, value=round(st.session_state["pct_muestra"] * 100), step=1,
-        help="Muestreo aleatorio estratificado por tipo de entidad (conserva la proporción real de universidades, institutos, empresas, etc.)",
-    )
-    st.session_state["pct_muestra"] = pct / 100
-with col_sem:
-    st.session_state["semilla"] = st.number_input("Semilla", min_value=0, max_value=9999, value=st.session_state["semilla"], step=1)
-with col_btn:
-    st.write("")
-    st.write("")
-    if st.button("🎲 Nueva muestra aleatoria"):
-        st.session_state["semilla"] = int(st.session_state["semilla"]) + 1
-        st.rerun()
+if modo_caso_base:
+    st.markdown("#### 2. Tamaño de la muestra")
+    st.caption("Fijado por el modo validación: los 30 códigos exactos del Anexo A del informe.")
+else:
+    st.markdown("#### 2. Define el tamaño de la muestra")
+    col_pct, col_sem, col_btn = st.columns([2, 1, 1])
+    with col_pct:
+        pct = st.slider(
+            "% de la convocatoria a incluir en el análisis",
+            min_value=5, max_value=100, value=round(st.session_state["pct_muestra"] * 100), step=1,
+            help="Muestreo aleatorio estratificado por tipo de entidad (conserva la proporción real de universidades, institutos, empresas, etc.)",
+        )
+        st.session_state["pct_muestra"] = pct / 100
+    with col_sem:
+        st.session_state["semilla"] = st.number_input("Semilla", min_value=0, max_value=9999, value=st.session_state["semilla"], step=1)
+    with col_btn:
+        st.write("")
+        st.write("")
+        if st.button("🎲 Nueva muestra aleatoria"):
+            st.session_state["semilla"] = int(st.session_state["semilla"]) + 1
+            st.rerun()
 
 universo = get_universo(df)
 muestra = get_muestra_scored(universo)

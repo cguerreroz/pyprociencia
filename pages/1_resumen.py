@@ -15,6 +15,8 @@ presupuesto = presupuesto_actual(universo)
 diag, resultado = diagnostico_y_resultado(muestra, presupuesto)
 
 st.subheader(st.session_state["convocatoria"].title())
+if st.session_state.get("modo_caso_base"):
+    st.caption("🔒 Modo validación activo — reproduciendo el caso exacto del informe (Anexo A).")
 
 if resultado is not None and resultado.estado == "OPTIMO":
     c1, c2, c3, c4, c5 = st.columns(5)

@@ -5,7 +5,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from core import get_data, ensure_defaults, sidebar_contexto, get_universo, get_muestra_scored, diagnostico_y_resultado
+from core import get_data, ensure_defaults, sidebar_contexto, get_universo, get_muestra_scored, diagnostico_y_resultado, desactivar_caso_base
+from data.caso_base import PRESUPUESTO_CASO_BASE
 from solvers.base import RestriccionesEquidad
 
 st.title("🎒 Panel de decisión")
@@ -20,23 +21,49 @@ muestra = get_muestra_scored(universo)
 total_convocatoria = float(universo["MONTO_SOLES"].sum())
 total_muestra = float(muestra["MONTO_SOLES"].sum())
 
+modo_caso_base = st.session_state.get("modo_caso_base", False)
+
+if modo_caso_base:
+    col_warn, col_salir = st.columns([5, 1])
+    with col_warn:
+        st.warning(
+            "🔒 **Modo validación activo** — convocatoria, muestra (los 30 códigos del Anexo A), presupuesto "
+            "(S/ 3,600,000) y restricciones están fijados para reproducir el informe."
+        )
+    with col_salir:
+        st.write("")
+        if st.button("Salir"):
+            desactivar_caso_base()
+            st.rerun()
+
 # ---------------- Controles ----------------
 st.markdown("#### Presupuesto")
-col_pct, col_manual = st.columns([2, 1])
-with col_pct:
-    pct_presupuesto = st.slider(
-        "% del total solicitado por la convocatoria",
-        min_value=5, max_value=100, value=round(st.session_state["pct_presupuesto"] * 100), step=1,
-    )
-    st.session_state["pct_presupuesto"] = pct_presupuesto / 100
-    st.session_state["presupuesto_manual"] = None
-with col_manual:
-    usar_manual = st.checkbox("Ingresar monto exacto (S/.)")
-    if usar_manual:
-        monto_manual = st.number_input("Presupuesto (S/.)", min_value=0.0, value=round(total_convocatoria * st.session_state["pct_presupuesto"], 2), step=10000.0)
-        st.session_state["presupuesto_manual"] = monto_manual
+if modo_caso_base:
+    presupuesto = PRESUPUESTO_CASO_BASE
+    st.caption(f"Presupuesto fijado por el modo validación: **S/ {presupuesto:,.0f}**")
+else:
+    col_pct, col_manual = st.columns([2, 1])
+    with col_pct:
+        pct_presupuesto = st.slider(
+            "% del total solicitado por la convocatoria",
+            min_value=5, max_value=100, value=round(st.session_state["pct_presupuesto"] * 100), step=1,
+            key="slider_pct_presupuesto",
+        )
+        st.session_state["pct_presupuesto"] = pct_presupuesto / 100
+    with col_manual:
+        usar_manual = st.checkbox(
+            "Ingresar monto exacto (S/.)",
+            value=st.session_state.get("presupuesto_manual") is not None,
+            key="chk_usar_manual",
+        )
+        if usar_manual:
+            valor_inicial = st.session_state.get("presupuesto_manual") or round(total_convocatoria * st.session_state["pct_presupuesto"], 2)
+            monto_manual = st.number_input("Presupuesto (S/.)", min_value=0.0, value=float(valor_inicial), step=10000.0, key="num_monto_manual")
+            st.session_state["presupuesto_manual"] = monto_manual
+        else:
+            st.session_state["presupuesto_manual"] = None
 
-presupuesto = st.session_state["presupuesto_manual"] or round(total_convocatoria * st.session_state["pct_presupuesto"], 2)
+    presupuesto = st.session_state["presupuesto_manual"] or round(total_convocatoria * st.session_state["pct_presupuesto"], 2)
 
 st.caption(
     f"Total solicitado por la convocatoria completa: **S/ {total_convocatoria:,.0f}** · "
@@ -52,27 +79,36 @@ if presupuesto >= total_muestra:
 
 st.markdown("#### Restricciones de equidad")
 r = st.session_state["restricciones"]
-col1, col2, col3 = st.columns(3)
-with col1:
-    diversidad_activa = st.toggle("Diversidad institucional", value=r.diversidad_activa)
-    max_por_entidad = st.number_input("Máx. proyectos por entidad repetida", min_value=1, max_value=5, value=r.max_por_entidad, disabled=not diversidad_activa)
-with col2:
-    n_institutos_disp = int((muestra["TIPO_ENTIDAD"] == "INSTITUTO DE INVESTIGACIÓN").sum())
-    institutos_activa = st.toggle("Fomento a institutos", value=r.institutos_activa)
-    min_institutos = st.number_input(f"Mín. institutos financiados (máx. {n_institutos_disp} en la muestra)", min_value=0, max_value=max(n_institutos_disp, 0), value=min(r.min_institutos, max(n_institutos_disp, 0)), disabled=not institutos_activa)
-with col3:
-    n_mujeres_disp = int((muestra["SEXO"] == "FEMENINO").sum())
-    genero_activa = st.toggle("Equidad de género", value=r.genero_activa)
-    min_pct_mujeres = st.slider(f"Mín. % financiados liderados por mujeres ({n_mujeres_disp} disponibles en la muestra)", min_value=0, max_value=100, value=round(r.min_pct_mujeres * 100), disabled=not genero_activa)
+if modo_caso_base:
+    st.caption(
+        f"Fijadas al caso base: máx. **1** proyecto por entidad repetida · mín. **{r.min_institutos}** institutos "
+        "financiados · **sin** restricción de género (no existía en el modelo del informe)."
+    )
+    diversidad_activa, max_por_entidad = r.diversidad_activa, r.max_por_entidad
+    institutos_activa, min_institutos = r.institutos_activa, r.min_institutos
+    genero_activa, min_pct_mujeres_pct = r.genero_activa, round(r.min_pct_mujeres * 100)
+else:
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        diversidad_activa = st.toggle("Diversidad institucional", value=r.diversidad_activa)
+        max_por_entidad = st.number_input("Máx. proyectos por entidad repetida", min_value=1, max_value=5, value=r.max_por_entidad, disabled=not diversidad_activa)
+    with col2:
+        n_institutos_disp = int((muestra["TIPO_ENTIDAD"] == "INSTITUTO DE INVESTIGACIÓN").sum())
+        institutos_activa = st.toggle("Fomento a institutos", value=r.institutos_activa)
+        min_institutos = st.number_input(f"Mín. institutos financiados (máx. {n_institutos_disp} en la muestra)", min_value=0, max_value=max(n_institutos_disp, 0), value=min(r.min_institutos, max(n_institutos_disp, 0)), disabled=not institutos_activa)
+    with col3:
+        n_mujeres_disp = int((muestra["SEXO"] == "FEMENINO").sum())
+        genero_activa = st.toggle("Equidad de género (no está en el informe original)", value=r.genero_activa)
+        min_pct_mujeres_pct = st.slider(f"Mín. % financiados liderados por mujeres ({n_mujeres_disp} disponibles en la muestra)", min_value=0, max_value=100, value=round(r.min_pct_mujeres * 100), disabled=not genero_activa)
 
-st.session_state["restricciones"] = RestriccionesEquidad(
-    diversidad_activa=diversidad_activa,
-    max_por_entidad=int(max_por_entidad),
-    institutos_activa=institutos_activa,
-    min_institutos=int(min_institutos),
-    genero_activa=genero_activa,
-    min_pct_mujeres=min_pct_mujeres / 100,
-)
+    st.session_state["restricciones"] = RestriccionesEquidad(
+        diversidad_activa=diversidad_activa,
+        max_por_entidad=int(max_por_entidad),
+        institutos_activa=institutos_activa,
+        min_institutos=int(min_institutos),
+        genero_activa=genero_activa,
+        min_pct_mujeres=min_pct_mujeres_pct / 100,
+    )
 
 st.divider()
 
