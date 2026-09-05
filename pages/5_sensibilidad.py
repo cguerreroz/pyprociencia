@@ -31,7 +31,7 @@ st.markdown("#### Barrido: score y proyectos financiados vs. presupuesto")
 total_convocatoria = float(universo["MONTO_SOLES"].sum())
 col_a, col_b = st.columns(2)
 pct_min = col_a.slider("% mínimo de la convocatoria", 5, 95, 10)
-pct_max = col_b.slider("% máximo de la convocatoria", pct_min + 5, 100, 60)
+pct_max = col_b.slider("% máximo de la convocatoria", pct_min + 5, 150, 60)
 
 pasos = np.linspace(pct_min, pct_max, 12)
 filas = []
@@ -98,10 +98,11 @@ with st.container(border=True):
         pct_comp_default = min(max(pct_comp_default, 5.0), 100.0)
         pct_comp = st.slider(
             "Presupuesto (% de la convocatoria)",
-            min_value=5, max_value=100,
+            min_value=5, max_value=150,
             value=int(round(st.session_state.get("sens_pct_presupuesto", pct_comp_default))),
             step=1, key="sens_pct_presupuesto",
         )
+        st.caption("Hasta 150% para simular un incremento de hasta 50% sobre el total de la convocatoria.")
         presupuesto_pct_comp = total_convocatoria * pct_comp / 100
 
         usar_monto_manual_comp = st.checkbox(
@@ -129,9 +130,10 @@ with st.container(border=True):
             "Diversidad institucional", value=st.session_state.get("sens_diversidad_activa", restricciones_actuales.diversidad_activa),
             key="sens_diversidad_activa",
         )
+        tope_max_entidad = max(len(muestra_comp), 1)
         max_por_entidad_comp = st.number_input(
-            "Máx. proyectos por entidad", min_value=1, max_value=5,
-            value=st.session_state.get("sens_max_por_entidad", restricciones_actuales.max_por_entidad),
+            "Máx. proyectos por entidad", min_value=1, max_value=tope_max_entidad,
+            value=min(st.session_state.get("sens_max_por_entidad", restricciones_actuales.max_por_entidad), tope_max_entidad),
             disabled=not diversidad_activa_comp, key="sens_max_por_entidad",
         )
     with col_ins:
