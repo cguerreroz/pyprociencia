@@ -5,12 +5,11 @@ corre igual en un portátil que en Streamlit Community Cloud.
 
 Resuelve exactamente el mismo problema de programación entera binaria del
 informe académico (antes resuelto con Gurobi): maximizar el score total
-sujeto a presupuesto, diversidad institucional, mínimo de institutos y
---nueva-- mínimo porcentaje de proyectos liderados por mujeres. CBC certifica
-optimalidad igual que Gurobi para un problema de este tamaño (decenas a un
-par de cientos de variables binarias): ambos son solvers exactos de
-Branch & Bound / Branch & Cut, la diferencia es de implementación, no de
-calidad de la respuesta.
+sujeto a presupuesto, diversidad institucional y mínimo de institutos. CBC
+certifica optimalidad igual que Gurobi para un problema de este tamaño
+(decenas a un par de cientos de variables binarias): ambos son solvers
+exactos de Branch & Bound / Branch & Cut, la diferencia es de implementación,
+no de calidad de la respuesta.
 """
 
 from __future__ import annotations
@@ -33,7 +32,6 @@ def resolver_portafolio(
     presupuesto: float,
     entidades: Sequence[str],
     tipo_entidad: Sequence[str],
-    sexo: Sequence[str],
     restricciones: RestriccionesEquidad,
 ) -> ResultadoOptimizacion:
     n = len(costos)
@@ -62,14 +60,6 @@ def resolver_portafolio(
     if restricciones.institutos_activa and restricciones.min_institutos > 0:
         idx_institutos = [i for i in range(n) if tipo_entidad[i] == "INSTITUTO DE INVESTIGACIÓN"]
         modelo += pulp.lpSum(x[i] for i in idx_institutos) >= restricciones.min_institutos, "Min_institutos"
-
-    # Equidad de género: Sum x(mujer) >= p * Sum x(todas)  <=>  Sum x(mujer) - p*Sum x(todas) >= 0
-    if restricciones.genero_activa and restricciones.min_pct_mujeres > 0:
-        idx_mujeres = [i for i in range(n) if sexo[i] == "FEMENINO"]
-        p = restricciones.min_pct_mujeres
-        modelo += (
-            pulp.lpSum(x[i] for i in idx_mujeres) - p * pulp.lpSum(x[i] for i in range(n)) >= 0
-        ), "Min_pct_mujeres"
 
     solver_cbc = pulp.PULP_CBC_CMD(msg=False)
     estado_solver = modelo.solve(solver_cbc)

@@ -17,7 +17,7 @@ tabla_a = pd.DataFrame([
     ("Presupuesto de cada convocatoria (Σ MONTO de sus proyectos)", "REAL", "Calculado a partir de datos oficiales"),
     ("% del presupuesto de la convocatoria realmente disponible (40% por defecto)", "SIMULADO", "Supuesto de modelado, ajustable por el usuario"),
     ("Score de priorización (0-100) de cada proyecto", "SIMULADO", "Construido por el equipo (Sección 3.3); no es una evaluación oficial de PROCIENCIA"),
-    ("Restricciones de diversidad institucional, institutos y equidad de género", "SIMULADO", "Reglas de política adicionales definidas por el equipo, ajustables por el usuario"),
+    ("Restricciones de diversidad institucional y fomento a institutos", "SIMULADO", "Reglas de política adicionales definidas por el equipo, ajustables por el usuario"),
 ], columns=["Elemento", "Origen", "Detalle"])
 st.dataframe(tabla_a, width="stretch", hide_index=True)
 

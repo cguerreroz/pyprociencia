@@ -23,8 +23,7 @@ costos = muestra["MONTO_SOLES"].tolist()
 scores = muestra["SCORE"].tolist()
 entidades = muestra["ENTIDAD_EJECUTORA_SUBVENCIONADO"].tolist()
 tipo_entidad = muestra["TIPO_ENTIDAD"].tolist()
-sexo = muestra["SEXO"].tolist()
-sin_restricciones = RestriccionesEquidad(diversidad_activa=False, institutos_activa=False, genero_activa=False)
+sin_restricciones = RestriccionesEquidad(diversidad_activa=False, institutos_activa=False)
 
 st.markdown("#### Barrido: score y proyectos financiados vs. presupuesto")
 total_convocatoria = float(universo["MONTO_SOLES"].sum())
@@ -36,7 +35,7 @@ pasos = np.linspace(pct_min, pct_max, 12)
 filas = []
 for pct in pasos:
     b = total_convocatoria * pct / 100
-    res = resolver_portafolio(costos, scores, b, entidades, tipo_entidad, sexo, restricciones_actuales)
+    res = resolver_portafolio(costos, scores, b, entidades, tipo_entidad, restricciones_actuales)
     if res.estado == "OPTIMO":
         filas.append({"pct_presupuesto": round(pct, 1), "presupuesto": b, "score_total": res.score_total, "n_proyectos": len(res.seleccionados)})
 barrido = pd.DataFrame(filas)
@@ -51,21 +50,70 @@ else:
     st.info("Ningún punto del barrido fue factible con las restricciones actuales; prueba desactivar alguna en el Panel de decisión.")
 
 st.divider()
-st.markdown("#### Comparación de escenarios (al presupuesto actual)")
+st.markdown("#### Comparación de escenarios")
 st.caption(
-    "Los tres escenarios usan el mismo presupuesto y la misma muestra; solo cambia la regla de decisión. "
-    "Compáralos en paralelo para justificar qué política de selección conviene adoptar."
+    "Los tres escenarios usan la misma muestra; solo cambia la regla de decisión. Compáralos en paralelo para "
+    "justificar qué política de selección conviene adoptar."
 )
 
-res_completo = resolver_portafolio(costos, scores, presupuesto_base, entidades, tipo_entidad, sexo, restricciones_actuales)
-res_sin_restr = resolver_portafolio(costos, scores, presupuesto_base, entidades, tipo_entidad, sexo, sin_restricciones)
-res_greedy = resolver_greedy(costos, scores, presupuesto_base)
+st.markdown("##### Parámetros del comparativo — cámbialos y el resultado se recalcula al instante")
+st.caption(
+    "Estos son los valores que realmente entran al cálculo del escenario \"Modelo completo\" (presupuesto y "
+    "restricciones de equidad). Ajústalos aquí para analizar en vivo, sin salir de esta página ni afectar lo "
+    "configurado en el Panel de decisión."
+)
+
+n_institutos_disp = int((muestra["TIPO_ENTIDAD"] == "INSTITUTO DE INVESTIGACIÓN").sum())
+col_pres, col_div, col_ins = st.columns(3)
+with col_pres:
+    pct_comp_default = round(100 * presupuesto_base / total_convocatoria, 1) if total_convocatoria else 40.0
+    pct_comp_default = min(max(pct_comp_default, 5.0), 100.0)
+    pct_comp = st.slider(
+        "Presupuesto (% de la convocatoria)",
+        min_value=5, max_value=100,
+        value=int(round(st.session_state.get("sens_pct_presupuesto", pct_comp_default))),
+        step=1, key="sens_pct_presupuesto",
+    )
+    presupuesto_comp = total_convocatoria * pct_comp / 100
+    st.caption(f"S/ {presupuesto_comp:,.0f}")
+with col_div:
+    diversidad_activa_comp = st.toggle(
+        "Diversidad institucional", value=st.session_state.get("sens_diversidad_activa", restricciones_actuales.diversidad_activa),
+        key="sens_diversidad_activa",
+    )
+    max_por_entidad_comp = st.number_input(
+        "Máx. proyectos por entidad", min_value=1, max_value=5,
+        value=st.session_state.get("sens_max_por_entidad", restricciones_actuales.max_por_entidad),
+        disabled=not diversidad_activa_comp, key="sens_max_por_entidad",
+    )
+with col_ins:
+    institutos_activa_comp = st.toggle(
+        "Fomento a institutos", value=st.session_state.get("sens_institutos_activa", restricciones_actuales.institutos_activa),
+        key="sens_institutos_activa",
+    )
+    tope_institutos = max(len(muestra), 1)
+    min_institutos_comp = st.number_input(
+        f"Mín. institutos financiados ({n_institutos_disp} disponibles)", min_value=0, max_value=tope_institutos,
+        value=min(st.session_state.get("sens_min_institutos", restricciones_actuales.min_institutos), tope_institutos),
+        disabled=not institutos_activa_comp, key="sens_min_institutos",
+    )
+
+restricciones_comp = RestriccionesEquidad(
+    diversidad_activa=diversidad_activa_comp,
+    max_por_entidad=int(max_por_entidad_comp),
+    institutos_activa=institutos_activa_comp,
+    min_institutos=int(min_institutos_comp),
+)
+
+res_completo = resolver_portafolio(costos, scores, presupuesto_comp, entidades, tipo_entidad, restricciones_comp)
+res_sin_restr = resolver_portafolio(costos, scores, presupuesto_comp, entidades, tipo_entidad, sin_restricciones)
+res_greedy = resolver_greedy(costos, scores, presupuesto_comp)
 
 
 def _stats_escenario(resultado) -> dict | None:
-    """KPIs de score/costo MÁS composición del portafolio (entidades, institutos,
-    mujeres) -- sin esto último no se puede justificar el trade-off real entre
-    'más score' y 'más equidad', solo se ve el número agregado."""
+    """KPIs de score/costo MÁS composición del portafolio (entidades, institutos)
+    -- sin esto último no se puede justificar el trade-off real entre 'más score'
+    y 'más equidad', solo se ve el número agregado."""
     if resultado.estado != "OPTIMO":
         return None
     idx = list(resultado.seleccionados)
@@ -76,7 +124,6 @@ def _stats_escenario(resultado) -> dict | None:
         "costo_total": resultado.costo_total,
         "n_entidades": int(sub["ENTIDAD_EJECUTORA_SUBVENCIONADO"].nunique()),
         "n_institutos": int((sub["TIPO_ENTIDAD"] == "INSTITUTO DE INVESTIGACIÓN").sum()),
-        "n_mujeres": int((sub["SEXO"] == "FEMENINO").sum()),
     }
 
 
@@ -86,7 +133,7 @@ escenarios = [
         "subtitulo": "Presupuesto + equidad",
         "color": "#2E6E5E",
         "resultado": res_completo,
-        "nota": "La política vigente en el Panel de decisión: maximiza el score sujeto al presupuesto Y a las restricciones de equidad activas. Es la opción defendible si el comité debe cumplir criterios de fomento científico, no solo maximizar valor.",
+        "nota": "La política ajustable arriba: maximiza el score sujeto al presupuesto Y a las restricciones de equidad activas. Es la opción defendible si el comité debe cumplir criterios de fomento científico, no solo maximizar valor.",
     },
     {
         "titulo": "Sin restricciones",
@@ -124,8 +171,8 @@ for col, esc in zip(cols, escenarios):
         else:
             st.metric("Score total", f"{s['score_total']:,.1f}")
             st.metric("Proyectos financiados", f"{s['n_proyectos']} / {len(muestra)}")
-            st.metric("Presupuesto usado", f"S/ {s['costo_total']:,.0f}", f"{100*s['costo_total']/presupuesto_base:.1f}% del asignado" if presupuesto_base else None)
-            st.caption(f"Entidades distintas: **{s['n_entidades']}** · Institutos: **{s['n_institutos']}** · Proyectos de mujeres: **{s['n_mujeres']}**")
+            st.metric("Presupuesto usado", f"S/ {s['costo_total']:,.0f}", f"{100*s['costo_total']/presupuesto_comp:.1f}% del asignado" if presupuesto_comp else None)
+            st.caption(f"Entidades distintas: **{s['n_entidades']}** · Institutos: **{s['n_institutos']}**")
         st.caption(esc["nota"])
 
 st.markdown("##### Detalle comparativo")
@@ -136,7 +183,6 @@ etiquetas_fila = [
     ("costo_total", "Presupuesto usado (S/.)", "{:,.0f}"),
     ("n_entidades", "Entidades distintas financiadas", "{:,.0f}"),
     ("n_institutos", "Institutos financiados", "{:,.0f}"),
-    ("n_mujeres", "Proyectos de mujeres financiados", "{:,.0f}"),
 ]
 for clave, etiqueta, fmt in etiquetas_fila:
     fila = {"Indicador": etiqueta}
@@ -168,20 +214,19 @@ if stats["Modelo completo"] and stats["Sin restricciones"]:
     pct_costo = 100 * costo_equidad / s["score_total"] if s["score_total"] else 0
     delta_entidades = c["n_entidades"] - s["n_entidades"]
     delta_institutos = c["n_institutos"] - s["n_institutos"]
-    delta_mujeres = c["n_mujeres"] - s["n_mujeres"]
     st.metric(
         "Costo de la equidad",
         f"{costo_equidad:,.1f} puntos ({pct_costo:.1f}%)",
-        help="Score que se deja de ganar por imponer diversidad institucional, fomento a institutos y equidad de género.",
+        help="Score que se deja de ganar por imponer diversidad institucional y fomento a institutos.",
     )
     st.info(
         f"**Cómo leer esto para decidir:** exigir equidad cuesta **{pct_costo:.1f}%** del score máximo posible con este "
-        f"presupuesto, y a cambio el modelo completo financia {_delta_texto(delta_entidades, 'entidades distintas')}, "
-        f"{_delta_texto(delta_institutos, 'institutos')} y {_delta_texto(delta_mujeres, 'proyectos de mujeres')} "
+        f"presupuesto, y a cambio el modelo completo financia {_delta_texto(delta_entidades, 'entidades distintas')} y "
+        f"{_delta_texto(delta_institutos, 'institutos')} "
         "que la opción sin restricciones. "
         + ("Si ese costo en puntos es bajo frente a la ganancia en diversidad, la equidad sale casi gratis y conviene mantenerla. "
            if pct_costo < 10 else
-           "Es un costo considerable: el comité debe decidir explícitamente si la ganancia en diversidad institucional y de género "
+           "Es un costo considerable: el comité debe decidir explícitamente si la ganancia en diversidad institucional "
            "justifica renunciar a ese score, en vez de que la política de equidad se adopte por defecto sin discutir el trade-off. ")
     )
 

@@ -18,7 +18,7 @@ with st.container(border=True):
     st.markdown("##### 🔒 Modo validación — reproducir el caso exacto del informe")
     st.caption(
         "Fija la convocatoria 2018-01, los 30 códigos de proyecto exactos del Anexo A, el presupuesto S/ 3,600,000 "
-        "y las restricciones originales (sin equidad de género). Debe dar score "
+        "y las restricciones originales. Debe dar score "
         f"**{RESULTADO_ESPERADO['score_total']}**, **{RESULTADO_ESPERADO['n_proyectos']}** proyectos financiados. "
         "El número de proyectos y la semilla NO reproducen el muestreo del informe (el equipo nunca publicó su "
         "código exacto de muestreo estratificado) — esta lista fija es la única forma de igualar el resultado bit a bit."
@@ -70,8 +70,6 @@ if fila["aviso_pocos_proyectos"]:
     avisos.append("Esta convocatoria tiene pocos proyectos: el muestreo estratificado y las restricciones de equidad pueden ser poco informativas.")
 if fila["aviso_sin_institutos"]:
     avisos.append("Esta convocatoria no tiene institutos de investigación: desactiva la restricción de fomento a institutos o quedará infactible.")
-if fila["aviso_sin_mujeres"]:
-    avisos.append("Esta convocatoria no tiene proyectos liderados por mujeres: desactiva la restricción de equidad de género o quedará infactible.")
 for a in avisos:
     st.warning("⚠ " + a)
 

@@ -41,17 +41,6 @@ def chequear_factibilidad(muestra: pd.DataFrame, restricciones: RestriccionesEqu
                 "o menos, aumenta el número de proyectos de la muestra, o elige otra convocatoria."
             )
 
-    if restricciones.genero_activa:
-        n_mujeres = int((muestra["SEXO"] == "FEMENINO").sum())
-        if n_mujeres == 0 and restricciones.min_pct_mujeres > 0:
-            problemas.append(
-                "Pediste un mínimo de proyectos liderados por mujeres, pero esta convocatoria/muestra no tiene "
-                "ninguno. Desactiva la restricción de género o cambia de convocatoria."
-            )
-        # Nota: un chequeo más fino (si p% del óptimo posible es alcanzable dado el
-        # presupuesto) solo puede confirmarse resolviendo el modelo; este chequeo
-        # cubre el caso trivial e inequívoco de infactibilidad estructural.
-
     if restricciones.diversidad_activa and restricciones.max_por_entidad < 1:
         problemas.append("El máximo de proyectos por entidad debe ser al menos 1.")
 

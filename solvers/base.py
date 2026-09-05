@@ -19,9 +19,6 @@ class RestriccionesEquidad:
     institutos_activa: bool = True
     min_institutos: int = 2
 
-    genero_activa: bool = True
-    min_pct_mujeres: float = 0.30  # 0-1, fracción de los proyectos FINANCIADOS
-
 
 @dataclass
 class ResultadoOptimizacion:

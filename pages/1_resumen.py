@@ -2,8 +2,8 @@ import streamlit as st
 
 from core import get_data, ensure_defaults, sidebar_contexto, get_universo, get_muestra_scored, presupuesto_actual, diagnostico_y_resultado
 
-st.title("🎒 Modelos Binarios: Programación Entera Binaria")
-st.caption("Selección de proyectos de investigación en PROCIENCIA bajo restricción presupuestal y criterios de fomento de política científica — Panel Análisis Prescriptivo")
+st.title("🎒 Mochila con Equidad")
+st.caption("Selección de proyectos de investigación PROCIENCIA bajo restricción presupuestal — panel prescriptivo")
 
 df, resumen = get_data()
 ensure_defaults(resumen)
@@ -45,11 +45,11 @@ with col_sim:
         "**Simulado (supuesto del equipo)**\n\n"
         "- El % del presupuesto realmente asignado a la convocatoria (40% por defecto)\n"
         "- El score de priorización (Sección 3.3 del informe — no es una evaluación oficial)\n"
-        "- Los mínimos de institutos y de % de mujeres, y el máximo por entidad (política adoptada por el equipo)"
+        "- El mínimo de institutos y el máximo por entidad (política adoptada por el equipo)"
     )
 
 st.caption(
     "Basado en el dataset abierto de CONCYTEC (2015–2021) y en el informe académico "
-    "\"Selección de Proyectos de Investigación PROCIENCIA bajo Restricción Presupuestal y criterios de fomento de política científica\" "
-    "— Maestría en Ciencia de Datos, Modelos Prescriptivos y Optimización - 2026-II."
+    "\"Selección de Proyectos de Investigación PROCIENCIA bajo Restricción Presupuestal\" "
+    "— Maestría en Ciencia de Datos, Modelos Prescriptivos y Optimización."
 )

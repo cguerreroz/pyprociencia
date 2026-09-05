@@ -82,13 +82,12 @@ r = st.session_state["restricciones"]
 if modo_caso_base:
     st.caption(
         f"Fijadas al caso base: máx. **1** proyecto por entidad repetida · mín. **{r.min_institutos}** institutos "
-        "financiados · **sin** restricción de género (no existía en el modelo del informe)."
+        "financiados."
     )
     diversidad_activa, max_por_entidad = r.diversidad_activa, r.max_por_entidad
     institutos_activa, min_institutos = r.institutos_activa, r.min_institutos
-    genero_activa, min_pct_mujeres_pct = r.genero_activa, round(r.min_pct_mujeres * 100)
 else:
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     with col1:
         diversidad_activa = st.toggle("Diversidad institucional", value=r.diversidad_activa)
         max_por_entidad = st.number_input("Máx. proyectos por entidad repetida", min_value=1, max_value=5, value=r.max_por_entidad, disabled=not diversidad_activa)
@@ -96,18 +95,12 @@ else:
         n_institutos_disp = int((muestra["TIPO_ENTIDAD"] == "INSTITUTO DE INVESTIGACIÓN").sum())
         institutos_activa = st.toggle("Fomento a institutos", value=r.institutos_activa)
         min_institutos = st.number_input(f"Mín. institutos financiados (máx. {n_institutos_disp} en la muestra)", min_value=0, max_value=max(n_institutos_disp, 0), value=min(r.min_institutos, max(n_institutos_disp, 0)), disabled=not institutos_activa)
-    with col3:
-        n_mujeres_disp = int((muestra["SEXO"] == "FEMENINO").sum())
-        genero_activa = st.toggle("Equidad de género (no está en el informe original)", value=r.genero_activa)
-        min_pct_mujeres_pct = st.slider(f"Mín. % financiados liderados por mujeres ({n_mujeres_disp} disponibles en la muestra)", min_value=0, max_value=100, value=round(r.min_pct_mujeres * 100), disabled=not genero_activa)
 
     st.session_state["restricciones"] = RestriccionesEquidad(
         diversidad_activa=diversidad_activa,
         max_por_entidad=int(max_por_entidad),
         institutos_activa=institutos_activa,
         min_institutos=int(min_institutos),
-        genero_activa=genero_activa,
-        min_pct_mujeres=min_pct_mujeres_pct / 100,
     )
 
 st.divider()

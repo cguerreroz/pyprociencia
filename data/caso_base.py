@@ -2,8 +2,8 @@
 Caso base del informe académico: los 30 proyectos exactos del Anexo A,
 sobre la convocatoria "Proyecto de Investigación Aplicada y Desarrollo
 Tecnológico 2018-01" (190 proyectos), presupuesto S/ 3,600,000, y las
-restricciones originales (sin equidad de género -- esa restricción es una
-capacidad nueva de este panel, no existía en el modelo del informe).
+restricciones originales del informe (diversidad institucional y fomento a
+institutos).
 
 Este NO es el resultado de correr `muestra_estratificada()`: el informe
 nunca publicó el código exacto de su muestreo aleatorio estratificado

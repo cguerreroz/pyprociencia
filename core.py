@@ -65,11 +65,6 @@ def ensure_defaults(resumen: pd.DataFrame) -> None:
             max_por_entidad=1,
             institutos_activa=True,
             min_institutos=2,
-            # Apagada por defecto: es una restricción NUEVA que el informe original no tenía.
-            # Actívala desde el Panel de decisión cuando quieras explorarla -- pero entonces
-            # los resultados dejarán de coincidir con el informe, por diseño.
-            genero_activa=False,
-            min_pct_mujeres=0.30,
         ),
     )
 
@@ -101,7 +96,6 @@ def activar_caso_base(resumen: pd.DataFrame) -> None:
     st.session_state["restricciones"] = RestriccionesEquidad(
         diversidad_activa=True, max_por_entidad=1,
         institutos_activa=True, min_institutos=2,
-        genero_activa=False, min_pct_mujeres=0.0,
     )
 
 
@@ -128,7 +122,6 @@ def diagnostico_y_resultado(muestra_scored: pd.DataFrame, presupuesto: float):
         presupuesto=presupuesto,
         entidades=muestra_scored["ENTIDAD_EJECUTORA_SUBVENCIONADO"].tolist(),
         tipo_entidad=muestra_scored["TIPO_ENTIDAD"].tolist(),
-        sexo=muestra_scored["SEXO"].tolist(),
         restricciones=restricciones,
     )
     return diag, resultado

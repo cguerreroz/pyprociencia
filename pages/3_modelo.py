@@ -16,14 +16,13 @@ st.latex(r"""
 \textbf{Maximizar: } & Z = \sum_i s_i \, x_i \qquad \text{(score total)} \\[4pt]
 \textbf{Sujeto a: } & \sum_i c_i \, x_i \le B & \text{(presupuesto)} \\
 & \sum_{i \in E} x_i \le k & \text{(diversidad institucional, por entidad } E \text{ con} \ge 2 \text{ propuestas)} \\
-& \sum_{i \in \text{Institutos}} x_i \ge m & \text{(fomento a institutos de investigación)} \\
-& \sum_{i \in \text{Mujeres}} x_i \; - \; p \sum_i x_i \ge 0 & \text{(equidad de género: mínimo \(p\)\% de los financiados)}
+& \sum_{i \in \text{Institutos}} x_i \ge m & \text{(fomento a institutos de investigación)}
 \end{aligned}
 """)
 
 st.info(
     "**B** = presupuesto disponible = % elegido × (Σ MONTO de *todos* los proyectos de la convocatoria, "
-    "no solo de la muestra). **k**, **m** y **p** se ajustan en la página *Panel de decisión* — son las tres "
+    "no solo de la muestra). **k** y **m** se ajustan en la página *Panel de decisión* — son las dos "
     "restricciones de equidad configurables. **s_i** y **c_i** (score y costo de cada proyecto) no se ajustan aquí."
 )
 

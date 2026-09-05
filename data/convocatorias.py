@@ -48,7 +48,6 @@ def resumen_convocatorias(df: pd.DataFrame) -> pd.DataFrame:
     g["pct_mujeres"] = (100 * g["n_mujeres"] / g["n_proyectos"]).round(1)
     g["aviso_pocos_proyectos"] = g["n_proyectos"] < MIN_PROYECTOS_RECOMENDADO
     g["aviso_sin_institutos"] = g["n_institutos"] == 0
-    g["aviso_sin_mujeres"] = g["n_mujeres"] == 0
     return g
 
 
@@ -64,7 +63,5 @@ def etiqueta_convocatoria(fila: pd.Series) -> str:
         avisos.append("pocos proyectos")
     if fila["aviso_sin_institutos"]:
         avisos.append("sin institutos")
-    if fila["aviso_sin_mujeres"]:
-        avisos.append("sin proyectos de mujeres")
     sufijo = f"  ⚠ {', '.join(avisos)}" if avisos else ""
     return f"{fila['CONVOCATORIA']}  ·  {fila['anio']}  ·  {fila['n_proyectos']} proyectos{sufijo}"
