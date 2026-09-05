@@ -20,52 +20,22 @@ universo = get_universo(df)
 muestra = get_muestra_scored(universo).reset_index(drop=True)
 presupuesto_base = presupuesto_actual(universo)
 restricciones_actuales = st.session_state["restricciones"]
-
-costos = muestra["MONTO_SOLES"].tolist()
-scores = muestra["SCORE"].tolist()
-entidades = muestra["ENTIDAD_EJECUTORA_SUBVENCIONADO"].tolist()
-tipo_entidad = muestra["TIPO_ENTIDAD"].tolist()
-sin_restricciones = RestriccionesEquidad(diversidad_activa=False, institutos_activa=False)
-
-st.markdown("#### Barrido: score y proyectos financiados vs. presupuesto")
 total_convocatoria = float(universo["MONTO_SOLES"].sum())
-col_a, col_b = st.columns(2)
-pct_min = col_a.slider("% mínimo de la convocatoria", 5, 95, 10)
-pct_max = col_b.slider("% máximo de la convocatoria", pct_min + 5, 150, 60)
 
-pasos = np.linspace(pct_min, pct_max, 12)
-filas = []
-for pct in pasos:
-    b = total_convocatoria * pct / 100
-    res = resolver_portafolio(costos, scores, b, entidades, tipo_entidad, restricciones_actuales)
-    if res.estado == "OPTIMO":
-        filas.append({"pct_presupuesto": round(pct, 1), "presupuesto": b, "score_total": res.score_total, "n_proyectos": len(res.seleccionados)})
-barrido = pd.DataFrame(filas)
-
-if len(barrido):
-    fig = px.line(barrido, x="pct_presupuesto", y="score_total", markers=True, labels={"pct_presupuesto": "% de la convocatoria", "score_total": "Score total"})
-    fig.add_vline(x=round(100 * presupuesto_base / total_convocatoria, 1), line_dash="dash", line_color="#B8823A", annotation_text="presupuesto actual")
-    fig.update_layout(height=380, margin=dict(t=10))
-    st.plotly_chart(fig, width="stretch")
-    st.dataframe(barrido.rename(columns={"pct_presupuesto": "% convocatoria", "presupuesto": "Presupuesto (S/.)", "score_total": "Score total", "n_proyectos": "N proyectos"}), width="stretch", hide_index=True)
-else:
-    st.info("Ningún punto del barrido fue factible con las restricciones actuales; prueba desactivar alguna en el Panel de decisión.")
-
-st.divider()
-st.markdown("#### Comparación de escenarios")
-st.caption(
-    "Los tres escenarios usan la misma muestra; solo cambia la regla de decisión. Compáralos en paralelo para "
-    "justificar qué política de selección conviene adoptar."
-)
-
+sin_restricciones = RestriccionesEquidad(diversidad_activa=False, institutos_activa=False)
 modo_caso_base = st.session_state.get("modo_caso_base", False)
 
+st.caption(
+    "El barrido de presupuesto y la comparación de escenarios de esta página comparten los mismos parámetros: "
+    "ajústalos una sola vez aquí y ambos análisis se recalculan juntos, en vivo."
+)
+
 with st.container(border=True):
-    st.markdown("##### 🎛️ Parámetros del comparativo — cámbialos y el resultado se recalcula al instante")
+    st.markdown("##### 🎛️ Parámetros del análisis — cámbialos y todo lo de abajo se recalcula al instante")
     st.caption(
-        "Estos son los valores que realmente entran al cálculo de los escenarios (presupuesto, número de "
-        "proyectos de la muestra y restricciones de equidad). Ajústalos aquí para analizar en vivo, sin salir "
-        "de esta página ni afectar lo configurado en el Panel de decisión."
+        "Estos son los valores que entran al barrido de presupuesto y a la comparación de escenarios (número de "
+        "proyectos de la muestra, presupuesto y restricciones de equidad). Ajústalos aquí para analizar en vivo, "
+        "sin salir de esta página ni afectar lo configurado en el Panel de decisión."
     )
 
     col_n, col_pres, col_div, col_ins = st.columns([1.1, 1.3, 1, 1])
@@ -156,6 +126,40 @@ restricciones_comp = RestriccionesEquidad(
 )
 
 st.divider()
+
+st.markdown("#### Barrido: score y proyectos financiados vs. presupuesto")
+st.caption(
+    "Usa la muestra y las restricciones configuradas arriba; solo el % de presupuesto varía a lo largo del eje X, "
+    "para ver en qué punto el presupuesto deja (o no) de ser la restricción activa."
+)
+col_a, col_b = st.columns(2)
+pct_min = col_a.slider("% mínimo de la convocatoria", 5, 145, 10)
+pct_max = col_b.slider("% máximo de la convocatoria", pct_min + 5, 150, 60)
+
+pasos = np.linspace(pct_min, pct_max, 12)
+filas = []
+for pct in pasos:
+    b = total_convocatoria * pct / 100
+    res = resolver_portafolio(costos_comp, scores_comp, b, entidades_comp, tipo_entidad_comp, restricciones_comp)
+    if res.estado == "OPTIMO":
+        filas.append({"pct_presupuesto": round(pct, 1), "presupuesto": b, "score_total": res.score_total, "n_proyectos": len(res.seleccionados)})
+barrido = pd.DataFrame(filas)
+
+if len(barrido):
+    fig = px.line(barrido, x="pct_presupuesto", y="score_total", markers=True, labels={"pct_presupuesto": "% de la convocatoria", "score_total": "Score total"})
+    fig.add_vline(x=round(100 * presupuesto_comp / total_convocatoria, 1), line_dash="dash", line_color="#B8823A", annotation_text="presupuesto del análisis")
+    fig.update_layout(height=380, margin=dict(t=10))
+    st.plotly_chart(fig, width="stretch")
+    st.dataframe(barrido.rename(columns={"pct_presupuesto": "% convocatoria", "presupuesto": "Presupuesto (S/.)", "score_total": "Score total", "n_proyectos": "N proyectos"}), width="stretch", hide_index=True)
+else:
+    st.info("Ningún punto del barrido fue factible con las restricciones activas; prueba desactivarlas o relajarlas en \"Parámetros del análisis\" arriba.")
+
+st.divider()
+st.markdown("#### Comparación de escenarios")
+st.caption(
+    "Los tres escenarios usan la misma muestra y presupuesto configurados arriba; solo cambia la regla de decisión. "
+    "Compáralos en paralelo para justificar qué política de selección conviene adoptar."
+)
 
 res_completo = resolver_portafolio(costos_comp, scores_comp, presupuesto_comp, entidades_comp, tipo_entidad_comp, restricciones_comp)
 res_sin_restr = resolver_portafolio(costos_comp, scores_comp, presupuesto_comp, entidades_comp, tipo_entidad_comp, sin_restricciones)
