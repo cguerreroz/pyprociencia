@@ -2,8 +2,8 @@ import streamlit as st
 
 from core import get_data, ensure_defaults, sidebar_contexto, get_universo, get_muestra_scored, presupuesto_actual, diagnostico_y_resultado
 
-st.title("🎒 Mochila con Equidad")
-st.caption("Selección de proyectos de investigación PROCIENCIA bajo restricción presupuestal — panel prescriptivo")
+st.title("🎒 Modelos Binarios: Programación Entera Binaria")
+st.caption("Selección de proyectos de investigación en PROCIENCIA bajo restricción presupuestal y criterios de fomento de política científica — Panel Análisis Prescriptivo")
 
 df, resumen = get_data()
 ensure_defaults(resumen)
@@ -50,6 +50,6 @@ with col_sim:
 
 st.caption(
     "Basado en el dataset abierto de CONCYTEC (2015–2021) y en el informe académico "
-    "\"Selección de Proyectos de Investigación PROCIENCIA bajo Restricción Presupuestal\" "
-    "— Maestría en Ciencia de Datos, Modelos Prescriptivos y Optimización."
+    "\"Selección de Proyectos de Investigación PROCIENCIA bajo Restricción Presupuestal y criterios de fomento de política científica\" "
+    "— Maestría en Ciencia de Datos, Modelos Prescriptivos y Optimización - 2026-II."
 )

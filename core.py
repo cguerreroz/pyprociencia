@@ -169,7 +169,34 @@ def sidebar_contexto(df: pd.DataFrame, resumen: pd.DataFrame) -> None:
         )
         st.divider()
 
-        st.caption(UNIVERSIDAD)
-        st.caption(f"{MAESTRIA} — {CURSO}")
-        st.caption(f"Docente: {DOCENTE}")
-        st.caption(f"{GRUPO} — {', '.join(INTEGRANTES)}")
+        _integrantes_html = "".join(f"<li>{nombre}</li>" for nombre in INTEGRANTES)
+        st.markdown(
+            f"""
+            <div style="
+                background-color:#FBE7D2;
+                border:1px solid #EFC08A;
+                border-radius:10px;
+                padding:14px 16px;
+                text-align:center;
+                color:#5A3B1E;
+                line-height:1.35;
+            ">
+                <div style="font-weight:700; font-size:0.95rem; color:#C06A1B;">{UNIVERSIDAD}</div>
+                <div style="font-size:0.82rem; margin-top:4px;">{MAESTRIA}</div>
+                <div style="font-size:0.82rem;">Curso: {CURSO}</div>
+                <div style="font-size:0.82rem; margin-top:8px;">Docente: {DOCENTE}</div>
+                <div style="font-weight:700; font-size:0.85rem; margin-top:8px;">{GRUPO}</div>
+                <div style="font-size:0.82rem; font-weight:600; margin-top:6px;">Autores</div>
+                <ul style="
+                    display:inline-block;
+                    text-align:left;
+                    margin:2px auto 0;
+                    padding-left:20px;
+                    font-size:0.8rem;
+                ">
+                    {_integrantes_html}
+                </ul>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
