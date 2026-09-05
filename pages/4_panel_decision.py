@@ -73,8 +73,8 @@ st.caption(
 if presupuesto >= total_muestra:
     st.info(
         "ℹ El presupuesto asignado alcanza para financiar el 100% de la muestra actual: no es una restricción "
-        "activa. Sube el % de muestra, reduce el % de presupuesto o cambia de convocatoria para un problema de "
-        "decisión no trivial."
+        "activa. Sube el número de proyectos de la muestra, reduce el % de presupuesto o cambia de convocatoria "
+        "para un problema de decisión no trivial."
     )
 
 st.markdown("#### Restricciones de equidad")

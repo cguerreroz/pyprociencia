@@ -7,12 +7,14 @@ Resuelve un problema de programación entera binaria (variante del *0-1 knapsack
 ## Qué permite hacer
 
 - Elegir cualquiera de las **57 convocatorias** del dataset oficial de CONCYTEC (2015–2021), no solo la de 2018-01 usada en el informe original.
-- Ajustar el **% de la convocatoria** a incluir en el análisis (muestreo aleatorio estratificado por tipo de entidad) y la semilla.
+- Ajustar el **número de proyectos** de la convocatoria a incluir en el análisis (muestreo aleatorio estratificado por tipo de entidad, con asignación por el método del mayor residuo) y la semilla.
 - Ajustar el **presupuesto** como % del total solicitado por la convocatoria elegida (40% por defecto) o como monto exacto.
 - Encender/apagar y parametrizar las **tres restricciones de equidad**: diversidad institucional (máx. proyectos por entidad), fomento a institutos de investigación (mínimo) y equidad de género (mínimo % de financiados liderados por mujeres).
 - Ver el **portafolio óptimo**, exportarlo a CSV/Excel, comparar escenarios (con/sin restricciones, heurística Greedy) y correr un barrido de sensibilidad sobre el presupuesto.
 
 El score de priorización (Sección 3.3 del informe, Tabla B) es **fijo** — no expone pesos editables — y fue verificado por ingeniería inversa contra los 30 proyectos y sus scores publicados en el Anexo A del informe: con la convocatoria 2018-01, esos mismos 30 proyectos, presupuesto S/ 3,600,000 y las restricciones originales (sin equidad de género), el panel reproduce exactamente el resultado del informe: **score 1171.7, 14 proyectos financiados, costo S/ 3,563,522.87**.
+
+La barra lateral muestra además, en su parte inferior, los datos institucionales del trabajo (universidad, maestría, curso, docente e integrantes del grupo) — configurables en `data/creditos.py`.
 
 ## Estructura del proyecto
 
@@ -21,7 +23,7 @@ panel_prociencia/
 ├── app.py                      # st.navigation() — registra las 6 páginas
 ├── pages/
 │   ├── 1_resumen.py
-│   ├── 2_datos_contexto.py     # selector de convocatoria + % de muestra
+│   ├── 2_datos_contexto.py     # selector de convocatoria + número de proyectos de la muestra
 │   ├── 3_modelo.py
 │   ├── 4_panel_decision.py     # núcleo prescriptivo
 │   ├── 5_sensibilidad.py
@@ -30,7 +32,8 @@ panel_prociencia/
 ├── data/
 │   ├── loader.py                # lee el CSV, normaliza moneda (EUR/GBP → soles), cachea
 │   ├── convocatorias.py           # resumen por convocatoria (N, presupuesto total, institutos, mujeres)
-│   ├── sampling.py                 # muestreo estratificado, % y semilla ajustables
+│   ├── sampling.py                 # muestreo estratificado, N de proyectos y semilla ajustables
+│   ├── creditos.py                    # universidad, maestría, curso, docente e integrantes (barra lateral)
 │   ├── scoring.py                   # Score = 100·(0.40·Entidad + 0.35·Diversidad + 0.25·Género) — fijo
 │   └── raw/dataset_prociencia_original.csv
 ├── solvers/
@@ -77,4 +80,4 @@ No hay archivo `secrets.toml` que gestionar: al no usar Gurobi, no existen crede
 
 ## Validado contra el caso base del informe
 
-`data/scoring.py` reproduce exactamente el score de cada uno de los 30 proyectos del Anexo A, y `solvers/cbc_backend.py` reproduce exactamente la solución óptima del informe (14 proyectos, score 1171.7, costo S/ 3,563,522.87) cuando se fija manualmente el presupuesto en S/ 3,600,000 sobre esos mismos 30 proyectos y se desactiva la restricción de género (no existía en el modelo original). El % de muestra y la convocatoria configurables son una capacidad nueva de este panel: al generar una muestra distinta a la del informe (tamaño, semilla o convocatoria distintos), los resultados cambian en consecuencia — es el comportamiento esperado de una herramienta prescriptiva interactiva, no un error.
+`data/scoring.py` reproduce exactamente el score de cada uno de los 30 proyectos del Anexo A, y `solvers/cbc_backend.py` reproduce exactamente la solución óptima del informe (14 proyectos, score 1171.7, costo S/ 3,563,522.87) cuando se fija manualmente el presupuesto en S/ 3,600,000 sobre esos mismos 30 proyectos y se desactiva la restricción de género (no existía en el modelo original). El número de proyectos de la muestra y la convocatoria configurables son una capacidad nueva de este panel: al generar una muestra distinta a la del informe (tamaño, semilla o convocatoria distintos), los resultados cambian en consecuencia — es el comportamiento esperado de una herramienta prescriptiva interactiva, no un error.

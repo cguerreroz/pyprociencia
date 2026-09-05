@@ -3,9 +3,17 @@ Estado de sesión compartido entre las 6 páginas del panel.
 
 Cada página de Streamlit corre como un script independiente en cada
 interacción; lo que las mantiene coordinadas es `st.session_state` (los
-parámetros que el usuario elige: convocatoria, % de muestra, semilla,
+parámetros que el usuario elige: convocatoria, tamaño de muestra, semilla,
 presupuesto, restricciones) más `st.cache_data` (que evita releer o
 reprocesar el CSV y la lista de convocatorias en cada rerun).
+
+Los selectbox de convocatoria (el de esta barra lateral y el de la página
+"Datos y contexto") usan `on_change` en vez de comparar-y-llamar `st.rerun()`
+a mano: el callback actualiza `st.session_state["convocatoria"]` ANTES de
+que Streamlit vuelva a ejecutar el script (todo widget disparra un rerun
+automático al cambiar), así que el resto de la página ya ve el valor nuevo
+en esa misma pasada -- sin depender de un segundo rerun manual que podía
+quedar desincronizado entre los dos selectbox.
 """
 
 from __future__ import annotations
@@ -15,6 +23,7 @@ import streamlit as st
 
 from data.caso_base import CODIGOS_CASO_BASE, PRESUPUESTO_CASO_BASE
 from data.convocatorias import resumen_convocatorias, universo_convocatoria, etiqueta_convocatoria
+from data.creditos import UNIVERSIDAD, MAESTRIA, CURSO, DOCENTE, GRUPO, INTEGRANTES
 from data.loader import load_clean_dataset
 from data.scoring import calcular_score
 from data.sampling import muestra_estratificada, resumen_reduccion
@@ -23,7 +32,7 @@ from solvers.feasibility import chequear_factibilidad
 from solvers.cbc_backend import resolver_portafolio
 
 CONVOCATORIA_POR_DEFECTO_N = 190  # la convocatoria 2018-01 usada en el informe tiene 190 proyectos
-PCT_MUESTRA_POR_DEFECTO = 30 / 190  # 15.8%, el tamaño de muestra del informe
+N_MUESTRA_POR_DEFECTO = 30  # tamaño de muestra fijo del informe (30 proyectos)
 SEMILLA_POR_DEFECTO = 42
 PCT_PRESUPUESTO_POR_DEFECTO = 0.40
 
@@ -44,7 +53,7 @@ def _default_convocatoria(resumen: pd.DataFrame) -> str:
 def ensure_defaults(resumen: pd.DataFrame) -> None:
     ss = st.session_state
     ss.setdefault("convocatoria", _default_convocatoria(resumen))
-    ss.setdefault("pct_muestra", PCT_MUESTRA_POR_DEFECTO)
+    ss.setdefault("n_muestra", N_MUESTRA_POR_DEFECTO)
     ss.setdefault("semilla", SEMILLA_POR_DEFECTO)
     ss.setdefault("pct_presupuesto", PCT_PRESUPUESTO_POR_DEFECTO)
     ss.setdefault("presupuesto_manual", None)  # si el usuario escribe un monto exacto, sobreescribe el %
@@ -74,7 +83,8 @@ def get_muestra_scored(universo: pd.DataFrame) -> pd.DataFrame:
         muestra = universo[universo["CODIGO_ORDEN"].isin(CODIGOS_CASO_BASE)].copy()
         muestra = muestra.sort_values("CODIGO_ORDEN").reset_index(drop=True)
     else:
-        muestra = muestra_estratificada(universo, st.session_state["pct_muestra"], st.session_state["semilla"])
+        n = min(int(st.session_state["n_muestra"]), len(universo))
+        muestra = muestra_estratificada(universo, n, st.session_state["semilla"])
     return calcular_score(muestra)
 
 
@@ -86,6 +96,7 @@ def activar_caso_base(resumen: pd.DataFrame) -> None:
     otras convocatorias, muestras o restricciones."""
     st.session_state["modo_caso_base"] = True
     st.session_state["convocatoria"] = _default_convocatoria(resumen)
+    st.session_state["n_muestra"] = N_MUESTRA_POR_DEFECTO
     st.session_state["presupuesto_manual"] = PRESUPUESTO_CASO_BASE
     st.session_state["restricciones"] = RestriccionesEquidad(
         diversidad_activa=True, max_por_entidad=1,
@@ -123,6 +134,10 @@ def diagnostico_y_resultado(muestra_scored: pd.DataFrame, presupuesto: float):
     return diag, resultado
 
 
+def _aplicar_seleccion_sidebar() -> None:
+    st.session_state["convocatoria"] = st.session_state["selector_convocatoria_sidebar"]
+
+
 def sidebar_contexto(df: pd.DataFrame, resumen: pd.DataFrame) -> None:
     """Bloque de contexto visible en toda página: convocatoria activa + atajo
     para cambiarla sin tener que volver a la página 02."""
@@ -131,17 +146,19 @@ def sidebar_contexto(df: pd.DataFrame, resumen: pd.DataFrame) -> None:
         st.caption("CONVOCATORIA ACTIVA")
         opciones = resumen["CONVOCATORIA"].tolist()
         etiquetas = {row["CONVOCATORIA"]: etiqueta_convocatoria(row) for _, row in resumen.iterrows()}
-        seleccion = st.selectbox(
+        # Sincroniza el widget con la "fuente de verdad" (session_state["convocatoria"])
+        # en CADA rerun, antes de crearlo -- así reacciona también a cambios hechos
+        # desde el selector de la página "Datos y contexto", el modo validación, o
+        # el botón "Salir" del panel de decisión, sin depender de un rerun manual.
+        st.session_state["selector_convocatoria_sidebar"] = st.session_state["convocatoria"]
+        st.selectbox(
             "Convocatoria",
             opciones,
-            index=opciones.index(st.session_state["convocatoria"]),
             format_func=lambda c: etiquetas[c],
             label_visibility="collapsed",
             key="selector_convocatoria_sidebar",
+            on_change=_aplicar_seleccion_sidebar,
         )
-        if seleccion != st.session_state["convocatoria"]:
-            st.session_state["convocatoria"] = seleccion
-            st.rerun()
 
         universo = get_universo(df)
         muestra = get_muestra_scored(universo)
@@ -151,3 +168,8 @@ def sidebar_contexto(df: pd.DataFrame, resumen: pd.DataFrame) -> None:
             f"{red['muestra']} en la muestra ({red['pct_muestra_de_convocatoria']}%)"
         )
         st.divider()
+
+        st.caption(UNIVERSIDAD)
+        st.caption(f"{MAESTRIA} — {CURSO}")
+        st.caption(f"Docente: {DOCENTE}")
+        st.caption(f"{GRUPO} — {', '.join(INTEGRANTES)}")

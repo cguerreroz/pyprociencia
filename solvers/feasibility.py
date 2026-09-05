@@ -30,7 +30,7 @@ def chequear_factibilidad(muestra: pd.DataFrame, restricciones: RestriccionesEqu
     n = len(muestra)
 
     if n == 0:
-        return DiagnosticoFactibilidad(False, ["La muestra actual no tiene proyectos. Aumenta el % de muestra o cambia de convocatoria."])
+        return DiagnosticoFactibilidad(False, ["La muestra actual no tiene proyectos. Aumenta el número de proyectos de la muestra o cambia de convocatoria."])
 
     if restricciones.institutos_activa:
         n_institutos = int((muestra["TIPO_ENTIDAD"] == "INSTITUTO DE INVESTIGACIÓN").sum())
@@ -38,7 +38,7 @@ def chequear_factibilidad(muestra: pd.DataFrame, restricciones: RestriccionesEqu
             problemas.append(
                 f"Pediste un mínimo de {restricciones.min_institutos} institutos financiados, pero la muestra "
                 f"solo tiene {n_institutos} proyectos de institutos de investigación. Reduce el mínimo a {n_institutos} "
-                "o menos, aumenta el % de muestra, o elige otra convocatoria."
+                "o menos, aumenta el número de proyectos de la muestra, o elige otra convocatoria."
             )
 
     if restricciones.genero_activa:

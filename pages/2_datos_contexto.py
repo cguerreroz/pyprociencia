@@ -20,8 +20,8 @@ with st.container(border=True):
         "Fija la convocatoria 2018-01, los 30 códigos de proyecto exactos del Anexo A, el presupuesto S/ 3,600,000 "
         "y las restricciones originales (sin equidad de género). Debe dar score "
         f"**{RESULTADO_ESPERADO['score_total']}**, **{RESULTADO_ESPERADO['n_proyectos']}** proyectos financiados. "
-        "El % de muestra y la semilla NO reproducen el muestreo del informe (el equipo nunca publicó su código "
-        "exacto de muestreo estratificado) — esta lista fija es la única forma de igualar el resultado bit a bit."
+        "El número de proyectos y la semilla NO reproducen el muestreo del informe (el equipo nunca publicó su "
+        "código exacto de muestreo estratificado) — esta lista fija es la única forma de igualar el resultado bit a bit."
     )
     activar = st.toggle("Activar modo validación", value=modo_caso_base, key="toggle_caso_base")
     if activar != modo_caso_base:
@@ -37,18 +37,25 @@ if modo_caso_base:
     st.info("Convocatoria y muestra fijadas por el modo validación. Desactívalo arriba para elegir otra convocatoria o tamaño de muestra.")
     st.markdown(f"**Convocatoria:** {st.session_state['convocatoria'].title()}")
 else:
+    def _aplicar_seleccion_principal() -> None:
+        st.session_state["convocatoria"] = st.session_state["selector_convocatoria_principal"]
+
     st.markdown("#### 1. Elige la convocatoria")
     opciones = resumen["CONVOCATORIA"].tolist()
     etiquetas = {row["CONVOCATORIA"]: etiqueta_convocatoria(row) for _, row in resumen.iterrows()}
-    seleccion = st.selectbox(
+    # Igual que en el selector de la barra lateral: se sincroniza el widget con
+    # session_state["convocatoria"] en cada rerun y se usa on_change (no una
+    # comparación manual + st.rerun()) para que el resto de la página -- KPIs,
+    # avisos, gráficos y tabla -- se actualice de inmediato al elegir, sin
+    # depender de un segundo clic ni desincronizarse del selector lateral.
+    st.session_state["selector_convocatoria_principal"] = st.session_state["convocatoria"]
+    st.selectbox(
         "Convocatoria (57 disponibles, de 2015 a 2021)",
         opciones,
-        index=opciones.index(st.session_state["convocatoria"]),
         format_func=lambda c: etiquetas[c],
+        key="selector_convocatoria_principal",
+        on_change=_aplicar_seleccion_principal,
     )
-    if seleccion != st.session_state["convocatoria"]:
-        st.session_state["convocatoria"] = seleccion
-        st.rerun()
 
 fila = resumen[resumen["CONVOCATORIA"] == st.session_state["convocatoria"]].iloc[0]
 c1, c2, c3, c4, c5 = st.columns(5)
@@ -74,14 +81,20 @@ if modo_caso_base:
     st.caption("Fijado por el modo validación: los 30 códigos exactos del Anexo A del informe.")
 else:
     st.markdown("#### 2. Define el tamaño de la muestra")
-    col_pct, col_sem, col_btn = st.columns([2, 1, 1])
-    with col_pct:
-        pct = st.slider(
-            "% de la convocatoria a incluir en el análisis",
-            min_value=5, max_value=100, value=round(st.session_state["pct_muestra"] * 100), step=1,
-            help="Muestreo aleatorio estratificado por tipo de entidad (conserva la proporción real de universidades, institutos, empresas, etc.)",
-        )
-        st.session_state["pct_muestra"] = pct / 100
+    n_disponibles = int(fila["n_proyectos"])
+    st.session_state["n_muestra"] = min(int(st.session_state["n_muestra"]), n_disponibles)
+    if n_disponibles <= 1:
+        st.caption(f"Esta convocatoria solo tiene {n_disponibles} proyecto: se incluye automáticamente, sin muestreo.")
+        col_sem, col_btn = st.columns([1, 1])
+    else:
+        col_pct, col_sem, col_btn = st.columns([2, 1, 1])
+        with col_pct:
+            n_muestra = st.slider(
+                "Número de proyectos a incluir en el análisis",
+                min_value=1, max_value=n_disponibles, value=int(st.session_state["n_muestra"]), step=1,
+                help="Muestreo aleatorio estratificado por tipo de entidad (conserva la proporción real de universidades, institutos, empresas, etc.)",
+            )
+            st.session_state["n_muestra"] = n_muestra
     with col_sem:
         st.session_state["semilla"] = st.number_input("Semilla", min_value=0, max_value=9999, value=st.session_state["semilla"], step=1)
     with col_btn:

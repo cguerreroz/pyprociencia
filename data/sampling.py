@@ -1,43 +1,59 @@
 """
-Muestreo aleatorio estratificado por tipo de entidad, con tamaño y semilla
-ajustables por el usuario (Sección 3.2 del informe generaliza aquí el 15.8%
-fijo usado originalmente sobre la convocatoria 2018-01).
+Muestreo aleatorio estratificado por tipo de entidad, con un tamaño de
+muestra fijo (número de proyectos, ajustable por el usuario) y una semilla
+también ajustable (Sección 3.2 del informe generaliza aquí los 30 proyectos
+fijos usados originalmente sobre la convocatoria 2018-01).
 """
 
 from __future__ import annotations
 
-import math
-
 import pandas as pd
 
 
-def muestra_estratificada(df_convocatoria: pd.DataFrame, pct: float, semilla: int) -> pd.DataFrame:
-    """Devuelve una muestra de aproximadamente `pct` (0-1) de los proyectos de la
-    convocatoria, conservando la proporción real de cada TIPO_ENTIDAD.
+def muestra_estratificada(df_convocatoria: pd.DataFrame, n: int, semilla: int) -> pd.DataFrame:
+    """Devuelve una muestra de exactamente `n` proyectos (o todos los
+    disponibles si `n` es mayor o igual al tamaño de la convocatoria),
+    conservando la proporción real de cada TIPO_ENTIDAD.
 
-    Si `pct` cubre el 100% (o el resultado del redondeo por estrato iguala al
-    total), se devuelve la convocatoria completa sin aleatoriedad de por medio.
+    La asignación por estrato usa el método del mayor residuo: primero se
+    reparte `n` proporcionalmente al tamaño de cada estrato (parte entera),
+    y el remanente se asigna, de a uno, a los estratos con mayor residuo
+    fraccionario -- así el total siempre suma exactamente `n` sin sesgar
+    sistemáticamente al mismo estrato como haría "el último estrato absorbe
+    el redondeo".
     """
-    pct = max(0.0, min(1.0, pct))
     n_total = len(df_convocatoria)
-    n_objetivo = max(1, round(n_total * pct))
+    n_objetivo = max(1, int(n))
 
     if n_objetivo >= n_total:
-        return df_convocatoria.copy()
+        return df_convocatoria.sort_values("CODIGO_ORDEN").reset_index(drop=True)
+
+    estratos = list(df_convocatoria.groupby("TIPO_ENTIDAD"))
+    tamanos = [len(grupo) for _, grupo in estratos]
+
+    cuotas_exactas = [n_objetivo * t / n_total for t in tamanos]
+    asignacion = [min(tamanos[i], int(cuotas_exactas[i])) for i in range(len(estratos))]
+    restante = n_objetivo - sum(asignacion)
+
+    # Reparte el remanente a los estratos con mayor residuo fraccionario
+    # (y que todavía tengan proyectos disponibles), uno por uno.
+    residuos = sorted(
+        range(len(estratos)),
+        key=lambda i: cuotas_exactas[i] - int(cuotas_exactas[i]),
+        reverse=True,
+    )
+    idx = 0
+    while restante > 0 and any(asignacion[i] < tamanos[i] for i in range(len(estratos))):
+        i = residuos[idx % len(residuos)]
+        if asignacion[i] < tamanos[i]:
+            asignacion[i] += 1
+            restante -= 1
+        idx += 1
 
     partes = []
-    restante = n_objetivo
-    estratos = list(df_convocatoria.groupby("TIPO_ENTIDAD"))
-    for i, (_, grupo) in enumerate(estratos):
-        es_ultimo = i == len(estratos) - 1
-        if es_ultimo:
-            n_estrato = restante
-        else:
-            n_estrato = min(len(grupo), max(0, round(len(grupo) * pct)))
-        n_estrato = min(n_estrato, len(grupo), restante)
+    for (_, grupo), n_estrato in zip(estratos, asignacion):
         if n_estrato > 0:
             partes.append(grupo.sample(n=n_estrato, random_state=semilla))
-        restante -= n_estrato
 
     muestra = pd.concat(partes) if partes else df_convocatoria.iloc[0:0]
     return muestra.sort_values("CODIGO_ORDEN").reset_index(drop=True)
